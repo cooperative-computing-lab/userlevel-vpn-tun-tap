@@ -1,0 +1,125 @@
+#! /bin/bash
+
+IMAGE_PATH=                  # singularity image to run. set with --image
+NAME_MAX_TRIES=10            # number of attempts to find a unique name for the instance --max-tries
+SINGULARITY=singularity      # assume singularity is in path, otherwise specify with --singularity
+VPN_SERVER=                  # vpn server to connect to. set with --vpn-server
+NET_MODE=auto                # auto or ns or socks
+START_NET=yes                # should start network connection automatically
+
+show_help () {
+    echo "$0 --image IMAGE_PATH [--max-tries N] [--singularity SINGULARITY_PATH] -- CMD ARG ARG ..."
+    echo "where:"
+    echo "  --image IMAGE_PATH       Path to the singularity image to execute. (Required.)"
+    echo "  --singularity PATH       Path to the singularity executable. (Default: $SINGULARITY)"
+    echo "  --max-tries N            Maximum number of attempts to find a valid instance name. (Default: $NAME_MAX_TRIES)"
+    echo "  --vpn-server SERVER      VPN server to connect to. (Required.)"
+    echo "  --start-net yes|no       Whether to setup net on startup. If no, network setup with: source /etc/vpn-start"
+    echo "  --net-mode auto|ns|socks ns:    create virtually network interface"
+    echo "                           socks: use a socks5 server"
+    echo "                           auto:  try ns and fallback to socks. (Default: auto)"
+    echo "  CMD ARG ...:         Command and args to execute inside the container. Must be specified last."
+}
+
+start_instance () {
+    while [[ "${NAME_MAX_TRIES}" -gt 0 ]]
+    do
+        NAME_MAX_TRIES=$((NAME_MAX_TRIES-1))
+        CANDIDATE=ins-${RANDOM}
+        if ${SINGULARITY} instance start ${IMAGE_PATH} ${CANDIDATE}
+        then
+            INSTANCE_NAME=${CANDIDATE}
+            return 0
+        fi
+        echo $CANDIDATE
+    done
+
+    echo "Could not find a unique name for the instance."
+    exit 1
+}
+
+cleanup () {
+    if [[ -n "${INSTANCE_NAME}" ]]
+    then
+        ${SINGULARITY} instance stop ${CANDIDATE}
+    fi
+}
+trap cleanup EXIT
+
+# parse arguments
+while [[ $# -gt 0 ]]
+do
+    arg="$1"
+    case "${arg}" in
+        --image)
+            shift
+            IMAGE_PATH="$1"
+            ;;
+        --max-tries)
+            shift
+            NAME_MAX_TRIES="$1"
+            ;;
+        --singularity)
+            shift
+            SINGULARITY="$1"
+            ;;
+        --net-mode)
+            shift
+            NET_MODE="$1"
+            ;;
+        --start-net)
+            shift
+            START_NET="$1"
+            ;;
+        --vpn-server)
+            shift
+            VPN_SERVER="$1"
+            ;;
+        --help)
+            show_help
+            exit 0
+            ;;
+        --)
+            # Rest is taken as the command to execute.
+            shift
+            break
+            ;;
+        *)
+            echo "Unrecognized option: $arg"
+            show_help
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [[ -z "${IMAGE_PATH}" ]]
+then
+    echo "Missing --image option."
+    show_help
+    exit 0
+fi
+
+if [[ -z "${VPN_SERVER}" ]]
+then
+    echo "Missing --vpn-server option."
+    show_help
+    exit 0
+fi
+
+
+if [[ $# = 0 ]]
+then
+    # use /bin/bash as the default command to execute
+    set /bin/bash
+fi
+
+
+start_instance
+
+export VPN_SERVER
+export NET_MODE
+export START_NET
+
+${SINGULARITY} run instance://${INSTANCE_NAME} -- "$@"
+
