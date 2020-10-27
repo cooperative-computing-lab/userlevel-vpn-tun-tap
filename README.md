@@ -29,7 +29,7 @@ The `launch_instance` script simply starts/stops an instance of the singularity
 container so that no openconnect services are left behind The real virtual interface
 setup magic happens in /etc/vpn_start.sh.
 
-4. Debgging:
+4. Debugging:
 ```sh
 ./launch_instance --start-net no --image vpncms.sif --vpn-server MACHINE_WHERE_OCSERV_RUNS:9443 -- /bin/bash
 ...
