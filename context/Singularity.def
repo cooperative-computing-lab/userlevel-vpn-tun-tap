@@ -1,0 +1,49 @@
+Bootstrap: docker
+From: cmssw/cms:rhel6
+Stage: devel
+
+%post
+    cd /root
+    echo sslverify=false >> /etc/yum.conf
+    yum install -y git autoconf automake libevent2-devel
+    (cd ocproxy || git clone --branch vpnns-always-setns http://github.com/btovar/ocproxy.git)
+    (cd ocproxy && ./autogen.sh && ./configure && make)
+
+    # tsocks with patches to make it work with xrootd. Only needed if
+    # namespaces are not available and ocproxy/vpnns does not work
+    yum install -y glibc-static
+    [ -f tsocks-xrootd.tar.gz ] || wget -O tsocks-xrootd.tar.gz https://cernbox.cern.ch/index.php/s/zzm28IMbLZVZFYS/download
+    mkdir -p tsocks-xrootd && tar --strip-components=2 -C tsocks-xrootd -xf tsocks-xrootd.tar.gz
+    (cd tsocks-xrootd && ./configure && make)
+
+
+Bootstrap: docker
+From: cmssw/cms:rhel6
+Stage: final
+
+%files
+    ufw             /etc/default/ufw
+    before.rules    /etc/ufw/before.rules
+    entry_point.sh  /etc/
+    vpn_start.sh    /etc/
+    ocserv.conf     /etc/ocserv/
+    ocserv.passwd   /etc/ocserv/
+    tsocks.conf     /etc/
+
+%files from devel
+    /root/ocproxy/ocproxy                /usr/bin/
+    /root/ocproxy/vpnns                  /usr/bin/
+    /root/tsocks-xrootd/tsocks           /usr/bin/
+    /root/tsocks-xrootd/inspectsocks     /usr/bin/
+    /root/tsocks-xrootd/saveme           /usr/bin/
+    /root/tsocks-xrootd/validateconf     /usr/bin/
+    /root/tsocks-xrootd/libtsocks.so     /lib/
+    /root/tsocks-xrootd/libtsocks.so.1.8 /lib/
+
+%post
+    echo sslverify=false >> /etc/yum.conf
+    yum install -y openconnect ocserv ufw libevent2
+
+%runscript
+exec /etc/entry_point.sh "$@"
+
