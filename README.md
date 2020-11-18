@@ -35,6 +35,14 @@ $ LAUNCH_VPN_SERVER=yes sudo singularity run vpn-overlay vpncms.sif
 $ ocserv -f -d99
 ```
 
+If using docker for the vpn server, it needs to run in separate network than
+`host`, e.g.:
+
+```sh
+$ docker network create vpncms-net
+$ docker run -e LAUNCH_VPN_SERVER=yes --rm --name oscserv -ti -p 9443:9443 --privileged --network vpncms-net  -v $(pwd):/srv vpncms /bin/bash
+```
+
 3. Launch some clients. They do not need to be run as root.
 ```sh
 ./launch_instance --image vpncms.sif --vpn-server MACHINE_WHERE_OCSERV_RUNS:9443 -- /bin/bash

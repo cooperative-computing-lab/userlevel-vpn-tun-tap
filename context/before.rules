@@ -12,8 +12,8 @@
 *nat
 :POSTROUTING ACCEPT [0:0]
 
-# Allow traffic from clients to eth0
--A POSTROUTING -s 192.168.1.0/24 -o eth0 -j MASQUERADE
+# Allow traffic from clients to host interface
+-A POSTROUTING -s 10.13.1.0/24 -o eth0 -j MASQUERADE
 
 # do not delete the "COMMIT" line or the NAT table rules above will not be processed
 COMMIT

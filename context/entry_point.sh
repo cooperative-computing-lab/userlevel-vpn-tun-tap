@@ -14,6 +14,7 @@ then
     ocserv-genkey
     ufw enable
     ufw allow 9443
+    sysctl -w net.ipv4.ip_forward=1
     exec /bin/bash
 else
     echo "Activating openconnect..."
