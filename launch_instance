@@ -6,6 +6,8 @@ SINGULARITY=singularity      # assume singularity is in path, otherwise specify 
 VPN_SERVER=                  # vpn server to connect to. set with --vpn-server
 NET_MODE=auto                # auto or ns or socks
 START_NET=yes                # should start network connection automatically
+SOCKS_PORT=11080
+SIN_HOME=/srv
 
 show_help () {
     echo "$0 --image IMAGE_PATH [--max-tries N] [--singularity SINGULARITY_PATH] -- CMD ARG ARG ..."
@@ -18,6 +20,7 @@ show_help () {
     echo "  --net-mode auto|ns|socks ns:    create virtually network interface"
     echo "                           socks: use a socks5 server"
     echo "                           auto:  try ns and fallback to socks. (Default: auto)"
+    echo "  --socks-port PORT        Port for the socks5 server (Default $SOCKS_PORT)"
     echo "  CMD ARG ...:         Command and args to execute inside the container. Must be specified last."
 }
 
@@ -26,7 +29,7 @@ start_instance () {
     do
         NAME_MAX_TRIES=$((NAME_MAX_TRIES-1))
         CANDIDATE=ins-${RANDOM}
-        if ${SINGULARITY} instance start ${IMAGE_PATH} ${CANDIDATE}
+        if ${SINGULARITY} instance start --home $(pwd):${SIN_HOME} ${IMAGE_PATH} ${CANDIDATE}
         then
             INSTANCE_NAME=${CANDIDATE}
             return 0
@@ -75,6 +78,10 @@ do
             shift
             VPN_SERVER="$1"
             ;;
+        --socks-port)
+            shift
+            SOCKS_PORT="$1"
+            ;;
         --help)
             show_help
             exit 0
@@ -120,6 +127,8 @@ start_instance
 export VPN_SERVER
 export NET_MODE
 export START_NET
+export SOCKS_PORT
+export SIN_HOME
 
-${SINGULARITY} run instance://${INSTANCE_NAME} -- "$@"
+${SINGULARITY} run instance://${INSTANCE_NAME} "$@"
 

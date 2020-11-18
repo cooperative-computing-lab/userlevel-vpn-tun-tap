@@ -2,6 +2,10 @@ Bootstrap: docker
 From: cmssw/cms:rhel6
 Stage: devel
 
+%files
+tsocks_conf_env.patch /root/
+tsocks-xrootd.tar.gz /root
+
 %post
     cd /root
     echo sslverify=false >> /etc/yum.conf
@@ -14,6 +18,7 @@ Stage: devel
     yum install -y glibc-static
     [ -f tsocks-xrootd.tar.gz ] || wget -O tsocks-xrootd.tar.gz https://cernbox.cern.ch/index.php/s/zzm28IMbLZVZFYS/download
     mkdir -p tsocks-xrootd && tar --strip-components=2 -C tsocks-xrootd -xf tsocks-xrootd.tar.gz
+    (cd tsocks-xrootd && patch -p0 < /root/tsocks_conf_env.patch)
     (cd tsocks-xrootd && ./configure && make)
 
 

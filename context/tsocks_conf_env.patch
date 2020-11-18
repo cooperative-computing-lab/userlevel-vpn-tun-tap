@@ -1,0 +1,26 @@
+--- parser.c	2020-09-09 17:11:48.000000000 -0400
++++ parser.c	2020-11-18 09:45:26.178168335 -0500
+@@ -40,9 +40,22 @@
+ char __attribute__ ((visibility ("hidden")))
+ *find_config(char *line) {
+ 	struct passwd* pw;
++    char *tsocks_env;
+ 
+-	errno = 0;
++    /* check for tsocks.conf from env variable */
++    tsocks_env = getenv("TSOCKS_CONF");
++    if(tsocks_env) {
++        snprintf(line, MAXLINE - 1, "%s", tsocks_env);
++        line[MAXLINE - 1] = (char) 0;
++
++        if (access(line, R_OK)) {
++            show_msg(MSGDEBUG, "Can't access %s\n", line);
++            return NULL;
++        }
++    }
+ 
++
++	errno = 0;
+ 	pw = getpwuid(getuid());
+ 	if (errno) {
+ 		perror("getpwuid");
