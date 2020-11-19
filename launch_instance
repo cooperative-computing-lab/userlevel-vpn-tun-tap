@@ -29,7 +29,7 @@ start_instance () {
     do
         NAME_MAX_TRIES=$((NAME_MAX_TRIES-1))
         CANDIDATE=ins-${RANDOM}
-        if ${SINGULARITY} instance start --home $(pwd):${SIN_HOME} ${IMAGE_PATH} ${CANDIDATE}
+        if ${SINGULARITY} instance start --home $(pwd):${SIN_HOME} --bind $(pwd):$(pwd) ${IMAGE_PATH} ${CANDIDATE}
         then
             INSTANCE_NAME=${CANDIDATE}
             return 0
