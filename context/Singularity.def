@@ -33,7 +33,7 @@ Stage: final
     vpn_start.sh    /etc/
     ocserv.conf     /etc/ocserv/
     ocserv.passwd   /etc/ocserv/
-    tsocks.conf     /etc/
+    #tsocks.conf     /etc/
 
 %files from devel
     /root/ocproxy/ocproxy                /usr/bin/
@@ -48,6 +48,7 @@ Stage: final
 %post
     echo sslverify=false >> /etc/yum.conf
     yum install -y openconnect ocserv ufw libevent2
+    mkdir -p /srv
 
 %runscript
 exec /etc/entry_point.sh "$@"
