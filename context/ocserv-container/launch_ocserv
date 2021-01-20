@@ -1,0 +1,78 @@
+#! /bin/bash
+
+set -e
+
+VPN_PORT=9123
+
+mkdir -p /tmp/ocserv-run
+ns_pid=/tmp/ocserv-run/ns_pid.$$
+slirp_pid=/tmp/ocserv-run/slirp_pid.$$
+slirp_socket=/tmp/ocserv-run/slirp.socket.$$
+ocserv_pid=/tmp/ocserv-run/ocserv.pid    # comes from ocserv.conf
+certificates=/tmp/ocserv-run/certs
+
+
+trap cleanup EXIT
+cleanup () {
+    [[ -f ${ns_pid} ]]    && kill $(cat ${ns_pid}) 
+    [[ -f ${slirp_pid} ]] && kill $(cat ${slirp_pid}) 
+    [[ -f ${ocserv_pid} ]] && kill $(cat ${ocserv_pid}) 
+    rm -rf ${ns_pid} ${slirp_pid} ${slirp_socket} ${certificates} /tmp/ocserv-run
+}
+
+wait_for_file_creation()
+{
+    filename=$1
+    timeout=${2:-5}
+    counter_seconds=0
+
+    [[ -z "$filename" ]] && exit 1
+
+    while [[ $counter_seconds -lt $timeout ]]
+    do
+        [[ -e $filename ]] && return 0
+        counter_seconds=$(($counter_seconds + 1))
+        sleep 1
+    done
+
+    echo "$filename was not created. (timeout: $timeout s)"
+    exit 1
+}
+
+# generate certificates
+/usr/bin/ocserv-genkey ${certificates}
+
+# Create the namespace where ocserv will run
+unshare --user --map-root-user --net --mount /bin/sh <<EOF &
+mount --bind /etc/ocserv/resolv.conf /etc/resolv.conf
+mount --bind /etc/ocserv/hosts.allow /etc/hosts.allow
+mount --bind /etc/ocserv/hosts.deny  /etc/hosts.deny
+mount --bind ${certificates} /etc/pki/ocserv
+
+# wait for slirp4netns
+sleep 5
+
+
+# setup masquerading
+iptables-restore < /etc/ocserv/vpn-iptables.txt
+
+#launch ocserv
+export LD_PRELOAD=/usr/lib/keep_privileges.so
+ocserv -f -d1 -c /etc/ocserv/ocserv.conf
+EOF
+echo $! > ${ns_pid}
+
+# Create virtual network interface in the namespace (tap0)
+slirp4netns --configure --mtu=65520 --disable-host-loopback $(cat ${ns_pid}) -a ${slirp_socket} tap0 &
+echo $! > ${slirp_pid}
+
+wait_for_file_creation ${slirp_socket}
+
+# Expose port $VPN_PORT. $VPN_PORT is used for incoming vpn client connections
+json_api='{"execute": "add_hostfwd", "arguments": {"proto": "tcp", "host_addr": "0.0.0.0", "host_port": '"${VPN_PORT}"', "guest_addr": "10.0.2.100", "guest_port": '"${VPN_PORT}"'}}'
+echo "${json_api}" | nc -U ${slirp_socket}
+
+# Bring namespace to foreground
+wait $(cat ${ns_pid})
+wait $(cat ${slirp_pid})
+

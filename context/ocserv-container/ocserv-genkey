@@ -1,0 +1,41 @@
+#!/bin/sh
+
+BASE_DIR=${1:-ocserv_certs}
+
+#generate CA certificate/key
+if test ! -f ${BASE_DIR}/private/ca.key;then
+mkdir -p ${BASE_DIR}/private
+mkdir -p ${BASE_DIR}/cacerts
+certtool --generate-privkey --outfile ${BASE_DIR}/private/ca.key >/dev/null 2>&1
+echo "cn=`hostname -f` CA" >${BASE_DIR}/ca.tmpl
+echo "expiration_days=9999" >>${BASE_DIR}/ca.tmpl
+echo "serial=1" >>${BASE_DIR}/ca.tmpl
+echo "ca" >>${BASE_DIR}/ca.tmpl
+echo "cert_signing_key" >>${BASE_DIR}/ca.tmpl
+certtool --template ${BASE_DIR}/ca.tmpl \
+	--generate-self-signed --load-privkey ${BASE_DIR}/private/ca.key \
+	--outfile ${BASE_DIR}/cacerts/ca.crt >/dev/null 2>&1
+#rm -f ${BASE_DIR}/ca.tmpl
+fi
+
+#generate server certificate/key
+if test ! -f ${BASE_DIR}/private/server.key;then
+certtool --generate-privkey --outfile ${BASE_DIR}/private/server.key >/dev/null 2>&1
+echo "cn=`hostname -f`" >${BASE_DIR}/server.tmpl
+echo "serial=2" >>${BASE_DIR}/server.tmpl
+echo "expiration_days=9999" >>${BASE_DIR}/server.tmpl
+echo "signing_key" >>${BASE_DIR}/server.tmpl
+echo "encryption_key" >>${BASE_DIR}/server.tmpl
+certtool --template ${BASE_DIR}/server.tmpl \
+	--generate-certificate --load-privkey ${BASE_DIR}/private/server.key \
+	--load-ca-certificate ${BASE_DIR}/cacerts/ca.crt --load-ca-privkey \
+	${BASE_DIR}/private/ca.key --outfile ${BASE_DIR}/public/server.crt >/dev/null 2>&1
+#rm -f ${BASE_DIR}/server.tmpl
+fi
+
+if test ! -f ${BASE_DIR}/public/server.crt;then
+    mkdir -p ${BASE_DIR}/public
+    certtool --generate-certificate --load-privkey ${BASE_DIR}/private/server.key --load-ca-certificate ${BASE_DIR}/cacerts/ca.crt --load-ca-privkey ${BASE_DIR}/private/ca.key --template ${BASE_DIR}/server.tmpl --outfile ${BASE_DIR}/public/server.crt 
+fi
+
+exit 0
