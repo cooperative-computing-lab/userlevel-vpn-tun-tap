@@ -2,22 +2,232 @@
 
 set -e
 
-VPN_PORT=9123
+VPN_PORT=8443
+WORKDIR=$(pwd)/ocserv_files
 
-mkdir -p /tmp/ocserv-run
-ns_pid=/tmp/ocserv-run/ns_pid.$$
-slirp_pid=/tmp/ocserv-run/slirp_pid.$$
-slirp_socket=/tmp/ocserv-run/slirp.socket.$$
-ocserv_pid=/tmp/ocserv-run/ocserv.pid    # comes from ocserv.conf
-certificates=/tmp/ocserv-run/certs
+# Read nameservers for /etc/resolv.conf and put them in a comma separated list.
+DNS=$(grep nameserver /etc/resolv.conf | sed -E 's/nameserver\s+//' | sed -z -E 's/\s*$//' | sed -z 's/\n/,/g')
+USE_TAP=yes
 
+# Default gateway from slirp4netns for tap
+GATEWAY=10.0.2.2/255.255.255.0
 
-trap cleanup EXIT
-cleanup () {
-    [[ -f ${ns_pid} ]]    && kill $(cat ${ns_pid}) 
-    [[ -f ${slirp_pid} ]] && kill $(cat ${slirp_pid}) 
-    [[ -f ${ocserv_pid} ]] && kill $(cat ${ocserv_pid}) 
-    rm -rf ${ns_pid} ${slirp_pid} ${slirp_socket} ${certificates} /tmp/ocserv-run
+show_help () {
+    echo "$0 [--port PORT] [--dns SERVER,...] [--certs CERTSDIR] [--workdir WORKDIR]"
+    echo "where:"
+    echo "  --port PORT       Port to listen for vpn client connections. (Default is $VPN_PORT)"
+    echo "  --dns SERVER,..   Comma separated list of DNS servers to use. (Default nameserver's in /etc/resolv.conf)"
+    echo "  --certs CERTSDIR  Directory to create/read certificates. Certificates created if needed. (Default WORKDIR/certs)"
+    echo "  --workdir WORKDIR Directory to write support files. Created if needed. Default is ./$WORKDIR"
+}
+
+write_conf_file () {
+    # Turn comma-separated into dns=...\ndns=...
+    DNS=$(echo dns=$DNS | sed -E 's/,/\ndns=/g')
+
+    cat > "$ocserv_conf" <<EOF
+# AUTOMATICALLY GENERATED FILE by launch_ocserv. ANY CHANGES MAY BE OVERWRITTEN
+
+auth = "plain[passwd=/etc/ocserv/ocserv.passwd]" 
+
+tcp-port = ${VPN_PORT}
+udp-port = ${VPN_PORT}
+
+# Accept connections using a socket file. It accepts HTTP
+# connections (i.e., without SSL/TLS)
+#listen-clear-file = ${WORKDIR}/run/ocserv-conn.socket
+
+# socket file used for IPC with occtl.
+occtl-socket-file = ${WORKDIR}/run/occtl.socket
+
+# socket file used for server IPC (worker-main), will be appended with .PID
+# It must be accessible within the chroot environment (if any), so it is best
+# specified relatively to the chroot directory.
+socket-file = ocserv.sock
+
+# The default server directory. Does not require any devices present.
+chroot-dir = ${WORKDIR}/run
+
+### All configuration options below this line are reloaded on a SIGHUP.
+
+# Whether to enable seccomp/Linux namespaces worker isolation.
+isolate-workers = false
+
+# Limit the number of clients. Unset or set to zero for unlimited.
+max-clients = 0
+
+# Limit the number of identical clients (i.e., users connecting 
+# multiple times). Set to zero for unlimited.
+max-same-clients = 0
+
+# Limit the number of client connections to one every X milliseconds 
+# (X is the provided value). Set to zero for no limit.
+rate-limit-ms = 0
+
+# Keepalive in seconds
+keepalive = 32400
+
+# Dead peer detection in seconds.
+dpd = 90
+
+# Dead peer detection for mobile clients.
+mobile-dpd = 1800
+
+# If using DTLS, and no UDP traffic is received for this
+# many seconds, attempt to send future traffic over the TCP
+# connection instead, in an attempt to wake up the client.
+switch-to-tcp-timeout = 25
+
+# MTU discovery (DPD must be enabled)
+try-mtu-discovery = true
+
+server-cert = ${CERTSDIR}/public/server.crt
+server-key = ${CERTSDIR}/private/server.key
+ca-cert = ${CERTSDIR}/cacerts/ca.crt
+
+# The object identifier that will be used to read the user ID in the client 
+# certificate. The object identifier should be part of the certificate's DN
+# Useful OIDs are: 
+#  CN = 2.5.4.3, UID = 0.9.2342.19200300.100.1.1
+cert-user-oid = 0.9.2342.19200300.100.1.1
+
+# The object identifier that will be used to read the user group in the 
+# client  certificate. The object identifier should be part of the certificate's
+# DN. Useful OIDs are: 
+#  OU (organizational unit) = 2.5.4.11 
+#cert-group-oid = 2.5.4.11
+
+# Uncomment this to enable compression negotiation (LZS, LZ4).
+compression = true
+
+# Set the minimum size under which a packet will not be compressed.
+no-compress-limit = 256
+
+# GnuTLS priority string; note that SSL 3.0 is disabled by default
+tls-priorities = "NORMAL:%SERVER_PRECEDENCE:%COMPAT:-VERS-SSL3.0"
+
+# The time (in seconds) that a client is allowed to stay connected prior
+# to authentication
+auth-timeout = 240
+
+# The time (in seconds) that a client is allowed to stay idle (no traffic)
+# before being disconnected. Unset to disable.
+#idle-timeout = 1200
+
+# The time (in seconds) that a client is allowed to stay connected
+# Unset to disable.
+#session-timeout = 86400
+
+# The time (in seconds) that a mobile client is allowed to stay idle (no
+# traffic) before being disconnected. Unset to disable.
+#mobile-idle-timeout = 2400
+
+# The time (in seconds) that a client is not allowed to reconnect after 
+# a failed authentication attempt.
+min-reauth-time = 300
+
+# Banning clients in ocserv works with a point system. IP addresses
+# that get a score over that configured number are banned for
+# min-reauth-time seconds. By default a wrong password attempt is 10 points,
+# a KKDCP POST is 1 point, and a connection is 1 point. Note that
+# due to difference processes being involved the count of points
+# will not be real-time precise.
+# Set to zero to disable.
+max-ban-score = 50
+
+# The time (in seconds) that all score kept for a client is reset.
+ban-reset-time = 300
+
+# In case you'd like to change the default points.
+#ban-points-wrong-password = 10
+#ban-points-connection = 1
+#ban-points-kkdcp = 1
+
+# Cookie timeout (in seconds)
+cookie-timeout = 300
+
+# Whether roaming is allowed, i.e., if true a cookie is
+# restricted to a single IP address and cannot be re-used
+# from a different IP.
+deny-roaming = false
+
+# ReKey time (in seconds)
+rekey-time = 172800
+rekey-method = ssl
+
+# Whether to enable support for the occtl tool
+use-occtl = true
+
+# PID file. It can be overriden in the command line.
+pid-file = ${WORKDIR}/run/ocserv.pid
+
+# The name to use for the tun device
+device = vpns
+
+# Whether the generated IPs will be predictable, i.e., IP stays the
+# same for the same user when possible.
+predictable-ips = true
+
+# The default domain to be advertised
+default-domain = custom-vpn.net
+
+# The pool of addresses that leases will be given from.
+ipv4-network = 192.168.1.0
+ipv4-netmask = 255.255.255.0
+
+# Whether to tunnel all DNS queries via the VPN.
+tunnel-all-dns = true
+
+# The advertized DNS server.
+${DNS}
+
+# Prior to leasing any IP from the pool ping it to verify that
+# it is not in use by another (unrelated to this server) host.
+ping-leases = false
+
+# Use this option to enforce an MTU value to the incoming
+# connections. Unset to use the default MTU of the TUN device.
+#mtu = 1420
+
+# Unset to enable bandwidth restrictions (in bytes/sec). The
+# setting here is global, but can also be set per user or per group.
+#rx-data-per-sec = 40000
+#tx-data-per-sec = 40000
+
+# The number of packets (of MTU size) that are available in
+# the output buffer. The default (10) is low to improve latency.
+# Setting it higher will improve throughput.
+output-buffer = 100
+
+# Routes to be forwarded to the client.
+route = ${GATEWAY}
+
+# Subsets of the routes above that will not be routed by
+# the server.
+#no-route = 192.168.5.0/255.255.255.0
+
+# The following options are for (experimental) AnyConnect client 
+# compatibility. 
+
+# This option will enable the pre-draft-DTLS version of DTLS, and
+# will not require clients to present their certificate on every TLS
+# connection. It must be set to true to support legacy CISCO clients
+# and openconnect clients < 7.08. When set to true, it implies dtls-legacy = true.
+cisco-client-compat = true
+
+# This option allows to disable the DTLS-PSK negotiation (enabled by default).
+# The DTLS-PSK negotiation was introduced in ocserv 0.11.5 to deprecate
+# the pre-draft-DTLS negotiation inherited from AnyConnect. It allows the
+# DTLS channel to negotiate its ciphers and the DTLS protocol version.
+#dtls-psk = false
+
+# This option allows to disable the legacy DTLS negotiation (enabled by default,
+# but that may change in the future).
+# The legacy DTLS uses a pre-draft version of the DTLS protocol and was
+# from AnyConnect protocol. It has several limitations, that are addressed
+# by the dtls-psk protocol supported by openconnect 7.08+.
+dtls-legacy = true
+EOF
 }
 
 wait_for_file_creation()
@@ -39,26 +249,83 @@ wait_for_file_creation()
     exit 1
 }
 
+# parse arguments
+while [[ $# -gt 0 ]]
+do
+    arg="$1"
+    case "${arg}" in
+        --port)
+            shift
+            VPN_PORT="$1"
+            ;;
+        --dns)
+            shift
+            DNS="$1"
+            ;;
+        --certs)
+            shift
+            CERTSDIR="$1"
+            ;;
+        --workdir)
+            shift
+            WORKDIR="$1"
+            ;;
+        *)
+            echo "Unrecognized option: $arg"
+            show_help
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+
+# If workdir is not absolute, assume relative to current directory.
+if [[ "$WORKDIR" != /* ]]; then
+    WORKDIR=$(pwd)/${WORKDIR}
+fi
+WORKDIR=$(readlink -f $WORKDIR)
+
+if ! mkdir -p ${WORKDIR}/{etc,run}
+then
+    echo "Could not create working directory $WORKDIR"
+    exit 1
+fi
+
+if [[ -z "$CERTSDIR" ]]
+then
+    CERTSDIR=${WORKDIR}/certs
+fi
+
+ns_pid="${WORKDIR}"/run/ns_pid.$$
+slirp_pid="${WORKDIR}"/run/slirp_pid.$$
+slirp_socket="${WORKDIR}"/run/slirp.socket.$$
+ocserv_pid="${WORKDIR}"/run/ocserv.pid    # comes from ocserv.conf
+certs="${WORKDIR}"/etc/certs
+ocserv_conf="${WORKDIR}"/etc/ocserv.conf
+
 # generate certificates
-/usr/bin/ocserv-genkey ${certificates}
+/usr/bin/ocserv-genkey ${CERTSDIR}
+
+write_conf_file
 
 # Create the namespace where ocserv will run
 unshare --user --map-root-user --net --mount /bin/sh <<EOF &
 mount --bind /etc/ocserv/resolv.conf /etc/resolv.conf
 mount --bind /etc/ocserv/hosts.allow /etc/hosts.allow
 mount --bind /etc/ocserv/hosts.deny  /etc/hosts.deny
-mount --bind ${certificates} /etc/pki/ocserv
 
 # wait for slirp4netns
 sleep 5
 
-
 # setup masquerading
 iptables-restore < /etc/ocserv/vpn-iptables.txt
+iptables -A INPUT -p tcp --dport $VPN_PORT -j ACCEPT
+iptables -A INPUT -p udp --dport $VPN_PORT -j ACCEPT
 
 #launch ocserv
 export LD_PRELOAD=/usr/lib/keep_privileges.so
-ocserv -f -d1 -c /etc/ocserv/ocserv.conf
+ocserv -f -d1 -c $WORKDIR/etc/ocserv.conf
 EOF
 echo $! > ${ns_pid}
 
