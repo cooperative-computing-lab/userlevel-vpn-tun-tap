@@ -4,6 +4,7 @@ IMAGE_PATH=                  # singularity image to run. set with --image
 NAME_MAX_TRIES=10            # number of attempts to find a unique name for the instance --max-tries
 SINGULARITY=singularity      # assume singularity is in path, otherwise specify with --singularity
 VPN_SERVER=                  # vpn server to connect to. set with --vpn-server
+SERVERPIN=                   # sha256 pin of the vpn server
 NET_MODE=auto                # auto or ns or socks
 START_NET=yes                # should start network connection automatically
 SOCKS_PORT=11080
@@ -15,7 +16,8 @@ show_help () {
     echo "  --image IMAGE_PATH       Path to the singularity image to execute. (Required.)"
     echo "  --singularity PATH       Path to the singularity executable. (Default: $SINGULARITY)"
     echo "  --max-tries N            Maximum number of attempts to find a valid instance name. (Default: $NAME_MAX_TRIES)"
-    echo "  --vpn-server SERVER      VPN server to connect to. (Required.)"
+    echo "  --server SERVER          VPN server to connect to. (Required.)"
+    echo "  --servercert SERVERPIN   Server pin, of the form: pin-sha256:XXXX...= (Required.)"
     echo "  --start-net yes|no       Whether to setup net on startup. If no, network setup with: source /etc/vpn-start"
     echo "  --net-mode auto|ns|socks ns:    create virtually network interface"
     echo "                           socks: use a socks5 server"
@@ -74,9 +76,13 @@ do
             shift
             START_NET="$1"
             ;;
-        --vpn-server)
+        --server)
             shift
             VPN_SERVER="$1"
+            ;;
+        --servercert)
+            shift
+            SERVERPIN="$1"
             ;;
         --socks-port)
             shift
@@ -109,7 +115,14 @@ fi
 
 if [[ -z "${VPN_SERVER}" ]]
 then
-    echo "Missing --vpn-server option."
+    echo "Missing --server option."
+    show_help
+    exit 0
+fi
+
+if [[ -z "${SERVERPIN}" ]]
+then
+    echo "Missing --servercert option."
     show_help
     exit 0
 fi
@@ -125,6 +138,7 @@ fi
 start_instance
 
 export VPN_SERVER
+export SERVERPIN
 export NET_MODE
 export START_NET
 export SOCKS_PORT
