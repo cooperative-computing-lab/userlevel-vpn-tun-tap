@@ -1,4 +1,4 @@
-# cms-openconnect-tun
+# cms-vpn-tun-tap
 
 Setup of a virtual network interface inside a singularity container using
 network namespaces. All the network traffic of the container is routed to the
