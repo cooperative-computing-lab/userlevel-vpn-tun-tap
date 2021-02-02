@@ -38,4 +38,8 @@ if test ! -f ${BASE_DIR}/public/server.crt;then
     certtool --generate-certificate --load-privkey ${BASE_DIR}/private/server.key --load-ca-certificate ${BASE_DIR}/cacerts/ca.crt --load-ca-privkey ${BASE_DIR}/private/ca.key --template ${BASE_DIR}/server.tmpl --outfile ${BASE_DIR}/public/server.crt 
 fi
 
+echo "SERVER PIN"
+pin=openssl rsa -in ${BASE_DIR}/private/server.key -outform der -pubout | openssl dgst -sha256 -binary | openssl enc -base64          
+echo pin-sha256:${pin}
+
 exit 0
