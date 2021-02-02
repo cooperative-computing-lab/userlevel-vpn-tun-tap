@@ -7,13 +7,30 @@ from the vpn server.
 
 0. Pre-setup
 
-For debian-based distributions, the following is needed to allow a user to
-manipulate namespaces:
+The following is needed to allow a user to manipulate namespaces at the compute nodes:
 
 ```sh
-# as root
-$ echo 1 > /proc/sys/kernel/unprivileged_userns_clone
+# Add the following line to /etc/sysctl.d/99-sysctl.conf
+user.max_user_namespaces=10000
 ```
+
+and then run:
+
+```sh
+sysctl -p
+```
+
+The machine running the VPN host needs the following changes:
+
+```sh
+# Add the following line to /etc/sysctl.d/99-sysctl.conf
+user.max_user_namespaces=10000
+net.ipv4.ip_forward=1
+```
+
+and similarly run `sysctl -p` afterwards. These are the only steps that require
+root at the execution sites.
+
 
 1. Build singularity image:
 
@@ -52,7 +69,15 @@ The `launch_instance` script simply starts/stops an instance of the singularity
 container so that no openconnect services are left behind The real virtual interface
 setup magic happens in /etc/vpn_start.sh.
 
-4. Debugging:
+4. Adding cvmfs support
+
+cvmfs can be provided using cvmfsexec via fusermount and singularity.
+
+Create a singularity distribution of cvmfsexec (`-s` command line option) and
+set `--singularity` of `launch_instance` to the resulting cvmfsexec file. [NEED
+TO EXPAND.]
+
+5. Debugging:
 ```sh
 $ ./launch_instance --start-net no --image vpncms.sif --vpn-server MACHINE_WHERE_OCSERV_RUNS:9443 -- /bin/bash
 ...
