@@ -35,11 +35,11 @@ fi
 
 if test ! -f ${BASE_DIR}/public/server.crt;then
     mkdir -p ${BASE_DIR}/public
-    certtool --generate-certificate --load-privkey ${BASE_DIR}/private/server.key --load-ca-certificate ${BASE_DIR}/cacerts/ca.crt --load-ca-privkey ${BASE_DIR}/private/ca.key --template ${BASE_DIR}/server.tmpl --outfile ${BASE_DIR}/public/server.crt 
+    certtool --generate-certificate --load-privkey ${BASE_DIR}/private/server.key --load-ca-certificate ${BASE_DIR}/cacerts/ca.crt --load-ca-privkey ${BASE_DIR}/private/ca.key --template ${BASE_DIR}/server.tmpl --outfile ${BASE_DIR}/public/server.crt >/dev/null 2>&1
 fi
 
-echo "SERVER PIN"
-pin=openssl rsa -in ${BASE_DIR}/private/server.key -outform der -pubout | openssl dgst -sha256 -binary | openssl enc -base64          
+echo "SERVER PIN:"
+pin=$(openssl rsa -in ${BASE_DIR}/private/server.key -outform der -pubout 2>/dev/null | openssl dgst -sha256 -binary  2>/dev/null | openssl enc -base64 2>/dev/null)
 echo pin-sha256:${pin}
 
 exit 0
