@@ -12,6 +12,19 @@ USE_TAP=yes
 # Default gateway from slirp4netns for tap
 GATEWAY=10.0.2.2/255.255.255.0
 
+trap cleanup EXIT
+cleanup () {
+    if [[ -f "${ns_pid}" ]]
+    then
+        kill $(cat ${ns_pid}) && rm -f "${ns_pid}"
+    fi
+
+    if [[ -f "${slirp_pid}" ]]
+    then
+        kill $(cat ${slirp_pid}) && rm -f "${slirp_pid}"
+    fi
+}
+
 show_help () {
     echo "$0 [--port PORT] [--dns SERVER,...] [--certs CERTSDIR] [--workdir WORKDIR]"
     echo "where:"
@@ -339,7 +352,5 @@ wait_for_file_creation ${slirp_socket}
 json_api='{"execute": "add_hostfwd", "arguments": {"proto": "tcp", "host_addr": "0.0.0.0", "host_port": '"${VPN_PORT}"', "guest_addr": "10.0.2.100", "guest_port": '"${VPN_PORT}"'}}'
 echo "${json_api}" | nc -U ${slirp_socket}
 
-# Bring namespace to foreground
-wait $(cat ${ns_pid})
-wait $(cat ${slirp_pid})
+wait
 
