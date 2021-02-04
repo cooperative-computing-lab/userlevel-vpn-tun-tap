@@ -9,8 +9,9 @@ tsocks-xrootd.tar.gz /root
 %post
     cd /root
     echo sslverify=false >> /etc/yum.conf
-    yum install -y git autoconf automake libevent-devel
-    #(cd ocproxy || git clone --branch vpnns-always-setns http://github.com/btovar/ocproxy.git)
+    echo skip_missing_names_on_install=false >> /etc/yum.conf
+    yum install -y git autoconf automake libevent-devel wget
+    #(cd ocproxy || git clone --branch vpnns-always-setns http://github.com/btovar/ocproxy.git) # needed for centos6
     (cd ocproxy || git clone --branch master https://github.com/cernekee/ocproxy.git)
     (cd ocproxy && ./autogen.sh && ./configure && make)
 
@@ -28,9 +29,8 @@ From: cmssw/cms:rhel7
 Stage: final
 
 %files
-    entry_point.sh  /etc/
-    vpn_start.sh    /etc/
-    #tsocks.conf    /etc/
+    vpn-start.sh    /etc/cms-vpn/vpn-start.sh
+    tsocks.conf     /etc/
 
 %files from devel
     /root/ocproxy/ocproxy                /usr/bin/
@@ -44,9 +44,10 @@ Stage: final
 
 %post
     echo sslverify=false >> /etc/yum.conf
+    echo skip_missing_names_on_install=false >> /etc/yum.conf
     yum install -y openconnect libevent tcpdump expect
     mkdir -p /srv
 
 %runscript
-exec /etc/entry_point.sh "$@"
+exec /etc/cms-vpn/vpn-start.sh "$@"
 

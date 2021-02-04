@@ -11,19 +11,26 @@ SOCKS_PORT=11080
 SIN_HOME=/srv
 
 show_help () {
-    echo "$0 --image IMAGE_PATH [--max-tries N] [--singularity SINGULARITY_PATH] -- CMD ARG ARG ..."
-    echo "where:"
+    echo "$0 [options] -- CMD ARG ARG ..."
+    echo "required options are:"
     echo "  --image IMAGE_PATH       Path to the singularity image to execute. (Required.)"
-    echo "  --singularity PATH       Path to the singularity executable. (Default: $SINGULARITY)"
-    echo "  --max-tries N            Maximum number of attempts to find a valid instance name. (Default: $NAME_MAX_TRIES)"
     echo "  --server SERVER          VPN server to connect to. (Required.)"
-    echo "  --servercert SERVERPIN   Server pin, of the form: pin-sha256:XXXX...= (Required.)"
-    echo "  --start-net yes|no       Whether to setup net on startup. If no, network setup with: source /etc/vpn-start"
+    echo "  --servercert SERVERPIN   Server pin, of the form: pin-sha256:XXXX...= (Required)"
+    echo "  --user USER              Username for VPN server login. (Required.)" 
+    echo "  --passwd PASSWD          Password for VPN server login. (Required.)" 
+    echo ""
+    echo "other options are:"
+    echo "  --max-tries N            Maximum number of attempts to find a valid instance name. (Default: $NAME_MAX_TRIES)"
     echo "  --net-mode auto|ns|socks ns:    create virtually network interface"
     echo "                           socks: use a socks5 server"
     echo "                           auto:  try ns and fallback to socks. (Default: auto)"
+    echo "  --singularity PATH       Path to the singularity executable. (Default: $SINGULARITY)"
     echo "  --socks-port PORT        Port for the socks5 server (Default $SOCKS_PORT)"
-    echo "  CMD ARG ...:         Command and args to execute inside the container. Must be specified last."
+    echo "  --start-net yes|no       Whether to setup net on startup. If no, network can"
+    echo "                           be started with: source /etc/cms-vpn/vpn-start"
+    echo ""
+    echo "  CMD ARG ...:             Command and args to execute inside the container."
+    echo "                           Must be specified last after: --"
 }
 
 start_instance () {
@@ -84,6 +91,14 @@ do
             shift
             SERVERPIN="$1"
             ;;
+        --user)
+            shift
+            VPN_USER="$1"
+            ;;
+        --passwd)
+            shift
+            VPN_PASSWD="$1"
+            ;;
         --socks-port)
             shift
             SOCKS_PORT="$1"
@@ -106,26 +121,44 @@ do
     shift
 done
 
+missing_arg=no
 if [[ -z "${IMAGE_PATH}" ]]
 then
     echo "Missing --image option."
-    show_help
-    exit 0
+    missing_arg=yes
 fi
 
 if [[ -z "${VPN_SERVER}" ]]
 then
     echo "Missing --server option."
-    show_help
-    exit 0
+    missing_arg=yes
 fi
 
 if [[ -z "${SERVERPIN}" ]]
 then
     echo "Missing --servercert option."
-    show_help
-    exit 0
+    missing_arg=yes
 fi
+
+if [[ -z "${VPN_USER}" ]]
+then
+    echo "Missing --user option."
+    missing_arg=yes
+fi
+
+if [[ -z "${VPN_PASSWD}" ]]
+then
+    echo "Missing --passwd option."
+    missing_arg=yes
+fi
+
+if [[ "$missing_arg" = yes ]]
+then
+    show_help
+    exit 1
+fi
+
+
 
 
 if [[ $# = 0 ]]
@@ -143,6 +176,10 @@ export NET_MODE
 export START_NET
 export SOCKS_PORT
 export SIN_HOME
+
+# Warning: Only for testing. To do: Find better way to communicate credentials to clients.
+export VPN_USER
+export VPN_PASSWD
 
 ${SINGULARITY} run instance://${INSTANCE_NAME} "$@"
 

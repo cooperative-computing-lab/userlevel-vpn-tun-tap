@@ -2,6 +2,7 @@
 
 SOCKS_PORT=${SOCKS_PORT:-11080}
 NET_MODE=${NET_MODE:-auto}
+START_NET=${START_NET:-yes}
 
 trap cleanup EXIT
 cleanup () {
@@ -26,7 +27,7 @@ fi
 # fallback to socks
 if [[ "${NET_MODE}" = auto || "${NET_MODE}" = socks ]]
 then
-    echo supersecretpassword | openconnect ${VPN_SERVER} -u vpnuser --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}"
+    echo ${VPN_USER} | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}"
     export LD_PRELOAD=/lib/libtsocks.so.1.8 
 
     export TSOCKS_CONF=$(readlink -m $(mktemp -p ${SIN_HOME} tsocks.conf.XXXXXX))
