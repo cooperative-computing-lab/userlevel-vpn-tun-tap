@@ -32,25 +32,53 @@ and similarly run `sysctl -p` afterwards. These are the only steps that require
 root at the execution sites.
 
 
-1. Build singularity image:
+1. Building the containers
+
+1.1 Building the singularity image for the VPN clients:
 
 ```sh
-$ cd context
-$ sudo singularity build vpncms.sif Singularity.def
+$ cd context/openconnect-container
+$ sudo singularity build vpncms-client.sif Singularity.def
 ```
 
-The build process will compile `vpnns` for the cmssw/cms:rhel6 base docker
-image. It also copies a test configuration for the ocserv vpn server with a
-default password (thus do not use this in production!).
+The build process installs openconnect and its dependencies using the
+cmssw/cms:rhel7 image as a base. It will also compile from source `vpnns`,
+`ocproxy' and `tsocks`, the alternative programs to use openconnect without
+root privileges.
 
-2. Run the ocserv vpn server. This needs to be run as root, since we need to
-   setup some iptables.
+1.2 Building the singularity image for the VPN server:
 
 ```sh
-$ LAUNCH_VPN_SERVER=yes sudo singularity run vpn-overlay vpncms.sif
-### start vpn server with some debug output and in the foreground:
-$ ocserv -f -d99
+$ cd context/ocserv-container
+$ sudo singularity build vpncms-server.sif Singularity.def
 ```
+
+2. Running the VPN server
+
+2.a Without root privileges: 
+
+To ensure that all processes are termianted when the singularity container
+terminates, we execute the image inside an instance:
+
+```sh
+$ singularity instance start --home $(pwd):/srv vpncms-server.sif my-vpnserver-instance
+$ singularity run --home $(pwd):/srv instance://my-vpnserver-instance
+# inside the container:
+$ /usr/bin/launch_ocserv --add-user myvpnuser:myvpnpasswd --port 8443
+Added user: myvpnuser
+SERVER PIN:
+pin-sha256:XXXXXXX...
+```
+
+We make note of the server pin printed, as we will need it when connecting the clients.
+
+
+2.b With root privileges: 
+
+[[ something similar to the above; but using singularity --network, etc. need to expand ]]
+
+
+2.c Docker [[ obsolete instructions, need to update ]]
 
 If using docker for the vpn server, it needs to run in separate network than
 `host`, e.g.:
@@ -60,14 +88,20 @@ $ docker network create vpncms-net
 $ docker run -e LAUNCH_VPN_SERVER=yes --rm --name oscserv -ti -p 9443:9443 --privileged --network vpncms-net  -v $(pwd):/srv vpncms /bin/bash
 ```
 
-3. Launch some clients. They do not need to be run as root.
+3. Launch some vpn clients;
 ```sh
-./launch_instance --image vpncms.sif --vpn-server MACHINE_WHERE_OCSERV_RUNS:9443 -- /bin/bash
+$ ./launch_instance --image vpncms-client.sif \
+     --server MACHINE_WHERE_OCSERV_RUNS:8443 \
+     --servercert pin-sha256:XXXXXXX... \
+     --user myvpnuser \
+     --passwd myvpnpasswd \
+     --net-mode ns \
+     -- /bin/bash
 ```
 
 The `launch_instance` script simply starts/stops an instance of the singularity
 container so that no openconnect services are left behind The real virtual interface
-setup magic happens in /etc/vpn_start.sh.
+setup magic happens in /etc/cms-vpn/vpn-start.sh.
 
 4. Adding cvmfs support
 
@@ -76,35 +110,4 @@ cvmfs can be provided using cvmfsexec via fusermount and singularity.
 Create a singularity distribution of cvmfsexec (`-s` command line option) and
 set `--singularity` of `launch_instance` to the resulting cvmfsexec file. [NEED
 TO EXPAND.]
-
-5. Debugging:
-```sh
-$ ./launch_instance --start-net no --image vpncms.sif --vpn-server MACHINE_WHERE_OCSERV_RUNS:9443 -- /bin/bash
-...
-$ ip addr
-Singularity> ip addr
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
-link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-inet 127.0.0.1/8 scope host lo
-valid_lft forever preferred_lft forever
-inet6 ::1/128 scope host 
-valid_lft forever preferred_lft forever
-2: enp0s25: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc pfifo_fast state DOWN qlen 1000
-...
-
-$ /etc/vpn_start.sh /bin/bash
-$ ip addr
-Singularity> ifconfig 
-lo        Link encap:Local Loopback  
-inet addr:127.0.0.1  Mask:255.0.0.0
-inet6 addr: ::1/128 Scope:Host
-...
-
-tun0      Link encap:UNSPEC  HWaddr 00-00-00-00-00-00-00-00-00-00-00-00-00-00-00-00  
-inet addr:192.168.1.23  P-t-P:192.168.1.23  Mask:255.255.255.255
-inet6 addr: fe80::9c62:1dca:32f6:3619/64 Scope:Link
-UP POINTOPOINT RUNNING NOARP MULTICAST  MTU:1472  Metric:1
-...
-```
-
 
