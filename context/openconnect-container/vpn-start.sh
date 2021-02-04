@@ -12,9 +12,16 @@ cleanup () {
     fi
 }
 
+if [[ "${START_NET}" = no ]]
+then
+    exec "$@"
+else
+    echo "Activating openconnect..."
+fi
+
 if [[ "${NET_MODE}" = auto || "${NET_MODE}" = ns ]]
 then
-    if echo  supersecretpassword | openconnect ${VPN_SERVER} -u vpnuser --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun  --script "vpnns --attach"
+    if echo "${VPN_PASSWD}" | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun  --script "vpnns --attach" --no-dtls
     then
         sleep 1
         echo "Using virtual network interface..."
@@ -27,7 +34,7 @@ fi
 # fallback to socks
 if [[ "${NET_MODE}" = auto || "${NET_MODE}" = socks ]]
 then
-    echo ${VPN_USER} | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}"
+    echo ${VPN_USER} | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}" --no-dtls
     export LD_PRELOAD=/lib/libtsocks.so.1.8 
 
     export TSOCKS_CONF=$(readlink -m $(mktemp -p ${SIN_HOME} tsocks.conf.XXXXXX))
