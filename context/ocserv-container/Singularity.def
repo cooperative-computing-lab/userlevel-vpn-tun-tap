@@ -22,9 +22,6 @@ Stage: final
     cd /root
     gcc -Wall -fPIC -shared -o /usr/lib/keep_privileges.so keep_privileges.c
 
-    # needed because ocserv does not run as root
-    chmod 644 /etc/ocserv/ocserv.passwd
-
     echo sslverify=false >> /etc/yum.conf
     echo skip_missing_names_on_install=false >> /etc/yum.conf
     yum install -y ocserv nc
