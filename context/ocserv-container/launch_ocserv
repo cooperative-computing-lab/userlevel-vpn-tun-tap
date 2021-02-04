@@ -28,20 +28,21 @@ cleanup () {
 show_help () {
     echo "$0 [--port PORT] [--dns SERVER,...] [--certs CERTSDIR] [--workdir WORKDIR]"
     echo "where:"
-    echo "  --port PORT       Port to listen for vpn client connections. (Default is $VPN_PORT)"
-    echo "  --dns SERVER,..   Comma separated list of DNS servers to use. (Default nameserver's in /etc/resolv.conf)"
-    echo "  --certs CERTSDIR  Directory to create/read certificates. Certificates created if needed. (Default WORKDIR/certs)"
-    echo "  --workdir WORKDIR Directory to write support files. Created if needed. Default is ./$WORKDIR"
+    echo "  --port PORT          Port to listen for vpn client connections. (Default is $VPN_PORT)"
+    echo "  --dns SERVER,..      Comma separated list of DNS servers to use. (Default nameserver's in /etc/resolv.conf)"
+    echo "  --certs CERTSDIR     Directory to create/read certificates. Certificates created if needed. (Default WORKDIR/certs)"
+    echo "  --workdir WORKDIR    Directory to write support files. Created if needed. Default is ./$WORKDIR"
+    echo "  --add-user USER:PASS Declare USER with password PASS"
 }
 
 write_conf_file () {
     # Turn comma-separated into dns=...\ndns=...
     DNS=$(echo dns=$DNS | sed -E 's/,/\ndns=/g')
 
-    cat > "$ocserv_conf" <<EOF
+    cat > "${ocserv_conf}" <<EOF
 # AUTOMATICALLY GENERATED FILE by launch_ocserv. ANY CHANGES MAY BE OVERWRITTEN
 
-auth = "plain[passwd=/etc/ocserv/ocserv.passwd]" 
+auth = "plain[passwd=${ocserv_passwd}]"
 
 tcp-port = ${VPN_PORT}
 udp-port = ${VPN_PORT}
@@ -283,6 +284,10 @@ do
             shift
             WORKDIR="$1"
             ;;
+        --add-user)
+            shift
+            NEW_USER="$1"
+            ;;
         *)
             echo "Unrecognized option: $arg"
             show_help
@@ -316,6 +321,33 @@ slirp_socket="${WORKDIR}"/run/slirp.socket.$$
 ocserv_pid="${WORKDIR}"/run/ocserv.pid    # comes from ocserv.conf
 certs="${WORKDIR}"/etc/certs
 ocserv_conf="${WORKDIR}"/etc/ocserv.conf
+ocserv_passwd="${WORKDIR}"/etc/ocserv.passwd
+
+# copy pre-defined user and passwords if available
+if [[ ! -f "$ocserv_passwd" ]] && [[ -f /etc/ocserv/ocserv.passwd ]]
+then
+   cp /etc/ocserv/ocserv.passwd "${ocserv_passwd}"
+fi
+
+if [[ -n "${NEW_USER}" ]]
+then
+    user=${NEW_USER%%:*}
+    pass=${NEW_USER##*:}
+
+    if [[ -z "${user}" ]] || [[ -z "${pass}" ]]
+    then
+        echo "--add-user should be of the form USER:PASS"
+        exit 1
+    fi
+
+    if echo "${pass}" | ocpasswd -c "${ocserv_passwd}" "${user}"
+    then
+        echo "Added user: ${user}"
+    else
+        echo "Failed to add user: ${user}"
+        exit 1
+    fi
+fi
 
 # generate certificates
 /usr/bin/ocserv-genkey ${CERTSDIR}
@@ -338,7 +370,7 @@ iptables -A INPUT -p udp --dport $VPN_PORT -j ACCEPT
 
 #launch ocserv
 export LD_PRELOAD=/usr/lib/keep_privileges.so
-ocserv -f -d1 -c $WORKDIR/etc/ocserv.conf
+ocserv -f -d1 -c ${ocserv_conf}
 EOF
 echo $! > ${ns_pid}
 
