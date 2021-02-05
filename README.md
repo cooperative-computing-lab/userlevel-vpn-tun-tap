@@ -64,7 +64,7 @@ terminates, we execute the image inside an instance:
 $ singularity instance start --home $(pwd):/srv vpncms-server.sif my-vpnserver-instance
 $ singularity run --home $(pwd):/srv instance://my-vpnserver-instance
 # inside the container:
-$ /usr/bin/launch_ocserv --add-user myvpnuser:myvpnpasswd --port 8443
+$ /usr/bin/launch-vpn-server --add-user myvpnuser:myvpnpasswd --port 8443
 Added user: myvpnuser
 SERVER PIN:
 pin-sha256:XXXXXXX...
