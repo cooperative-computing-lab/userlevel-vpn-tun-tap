@@ -10,7 +10,7 @@ tsocks-xrootd.tar.gz /root
     cd /root
     echo sslverify=false >> /etc/yum.conf
     echo skip_missing_names_on_install=false >> /etc/yum.conf
-    yum install -y git autoconf automake libevent-devel wget
+    yum install -y git autoconf automake libevent-devel
     #(cd ocproxy || git clone --branch vpnns-always-setns http://github.com/btovar/ocproxy.git) # needed for centos6
     (cd ocproxy || git clone --branch master https://github.com/cernekee/ocproxy.git)
     (cd ocproxy && ./autogen.sh && ./configure && make)
