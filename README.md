@@ -90,7 +90,7 @@ $ docker run -e LAUNCH_VPN_SERVER=yes --rm --name oscserv -ti -p 9443:9443 --pri
 
 3. Launch some vpn clients;
 ```sh
-$ ./launch_instance --image vpncms-client.sif \
+$ ./launch-vpn-client --image vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \
@@ -99,7 +99,7 @@ $ ./launch_instance --image vpncms-client.sif \
      -- /bin/bash
 ```
 
-The `launch_instance` script simply starts/stops an instance of the singularity
+The `launch-vpn-client` script simply starts/stops an instance of the singularity
 container so that no openconnect services are left behind The real virtual interface
 setup magic happens in /etc/cms-vpn/vpn-start.sh.
 
@@ -108,6 +108,6 @@ setup magic happens in /etc/cms-vpn/vpn-start.sh.
 cvmfs can be provided using cvmfsexec via fusermount and singularity.
 
 Create a singularity distribution of cvmfsexec (`-s` command line option) and
-set `--singularity` of `launch_instance` to the resulting cvmfsexec file. [NEED
+set `--singularity` of `launch-vpn-client` to the resulting cvmfsexec file. [NEED
 TO EXPAND.]
 

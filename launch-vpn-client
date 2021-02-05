@@ -173,7 +173,6 @@ start_instance
 export VPN_SERVER
 export SERVERPIN
 export NET_MODE
-export START_NET
 export SOCKS_PORT
 export SIN_HOME
 
@@ -181,5 +180,11 @@ export SIN_HOME
 export VPN_USER
 export VPN_PASSWD
 
-${SINGULARITY} run instance://${INSTANCE_NAME} "$@"
+if [[ "${START_NET}" = yes ]]
+then
+    ${SINGULARITY} run instance://${INSTANCE_NAME} /etc/cms-vpn/vpn-client-start.sh "$@"
+else
+    echo "Not starting vpn client as requested."
+    echo "To activate vpn client use: /etc/cms-vpn/vpn-client-start.sh COMMAND"
+fi
 

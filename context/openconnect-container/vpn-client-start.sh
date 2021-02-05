@@ -2,7 +2,6 @@
 
 SOCKS_PORT=${SOCKS_PORT:-11080}
 NET_MODE=${NET_MODE:-auto}
-START_NET=${START_NET:-yes}
 
 trap cleanup EXIT
 cleanup () {
@@ -12,12 +11,7 @@ cleanup () {
     fi
 }
 
-if [[ "${START_NET}" = no ]]
-then
-    exec "$@"
-else
-    echo "Activating openconnect..."
-fi
+echo "Activating openconnect..."
 
 if [[ "${NET_MODE}" = auto || "${NET_MODE}" = ns ]]
 then
