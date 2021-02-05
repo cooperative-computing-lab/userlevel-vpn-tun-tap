@@ -13,7 +13,7 @@ Stage: final
 
 %files
     keep_privileges.c /root
-    launch_ocserv     /usr/bin/
+    launch-vpn-server /usr/bin/
     ocserv-genkey     /usr/bin/
     slirp4netns       /usr/bin/
     etc               /etc/ocserv

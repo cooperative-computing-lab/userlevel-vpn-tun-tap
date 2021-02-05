@@ -1,17 +1,17 @@
 # AUTOMATICALLY GENERATED FILE by launch_ocserv. ANY CHANGES WILL BE OVERWRITTEN
 # Changes should be done to /etc/ocserv/ocserv.conf.template
 
-auth = "plain[passwd=${ocserv_conf_passwd}]"
+auth = \"plain[passwd=/srv/ocserv-files/etc/ocserv.passwd]\"
 
 tcp-port = ${ocserv_conf_port}
 udp-port = ${ocserv_conf_port}
 
 # Accept connections using a socket file. It accepts HTTP
 # connections (i.e., without SSL/TLS)
-#listen-clear-file = ${ocserv_conf_run_dir}/ocserv-conn.socket
+#listen-clear-file = /srv/ocserv-files/run/ocserv-conn.socket
 
 # socket file used for IPC with occtl.
-occtl-socket-file = ${ocserv_conf_run_dir}/occtl.socket
+occtl-socket-file = /srv/ocserv-files/run/occtl.socket
 
 # socket file used for server IPC (worker-main), will be appended with .PID
 # It must be accessible within the chroot environment (if any), so it is best
@@ -19,7 +19,7 @@ occtl-socket-file = ${ocserv_conf_run_dir}/occtl.socket
 socket-file = ocserv.sock
 
 # The default server directory. Does not require any devices present.
-chroot-dir = ${ocserv_conf_run_dir}
+chroot-dir = /srv/ocserv-files/run
 
 ### All configuration options below this line are reloaded on a SIGHUP.
 
@@ -54,9 +54,9 @@ switch-to-tcp-timeout = 25
 # MTU discovery (DPD must be enabled)
 try-mtu-discovery = true
 
-server-cert = ${ocserv_conf_certs}/public/server.crt
-server-key = ${ocserv_conf_certs}/private/server.key
-ca-cert = ${ocserv_conf_certs}/cacerts/ca.crt
+server-cert = /srv/ocserv-files/etc/certs/public/server.crt
+server-key = /srv/ocserv-files/etc/certs/private/server.key
+ca-cert = /srv/ocserv-files/etc/certs/cacerts/ca.crt
 
 # The object identifier that will be used to read the user ID in the client 
 # certificate. The object identifier should be part of the certificate's DN
@@ -132,7 +132,7 @@ rekey-method = ssl
 use-occtl = true
 
 # PID file. It can be overriden in the command line.
-pid-file = ${ocserv_conf_run_dir}/ocserv.pid
+pid-file = /srv/ocserv-files/run/ocserv.pid
 
 # The name to use for the tun device
 device = vpns
@@ -145,7 +145,7 @@ predictable-ips = true
 default-domain = ${ocserv_conf_default_domain}
 
 # The pool of addresses that leases will be given from.
-ipv4-network = 192.168.1.0
+ipv4-network = ${ocserv_conf_pool}
 ipv4-netmask = 255.255.255.0
 
 # Whether to tunnel all DNS queries via the VPN.

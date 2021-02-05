@@ -7,15 +7,22 @@ WORKDIR=$(pwd)/ocserv-files
 
 # default options for ocserv.conf
 ocserv_conf_template=/etc/ocserv/ocserv.conf.template
+ocserv_conf_masq_template=/etc/ocserv/vpn-iptables.template
 ocserv_conf_port=8443
 ocserv_conf_gateway=10.0.2.0/24             # default value from slirp4netns for tap0
 ocserv_conf_default_domain=ocserv-server.net
 ocserv_conf_rx_bytes_sec=1250000000
 ocserv_conf_tx_bytes_sec=1250000000
-ocserv_conf_file="\${WORKDIR}"/etc/ocserv.conf
-ocserv_conf_passwd="\${WORKDIR}"/etc/ocserv.passwd
-ocserv_conf_run_dir="\${WORKDIR}"/run
-ocserv_conf_certs="\${WORKDIR}"/etc/certs
+
+ocserv_files=/srv/ocserv-files
+ocserv_etc=${ocserv_files}/etc
+
+ocserv_conf_file=${ocserv_etc}/ocserv.conf
+ocserv_conf_masq_file=${ocserv_etc}/vpn-iptables
+ocserv_conf_passwd=${ocserv_etc}/ocserv.passwd
+ocserv_conf_certs="${ocserv_etc}"/certs
+ocserv_conf_pool=192.168.1.0
+ocserv_conf_interface=tap0
 
 # Read nameservers for /etc/resolv.conf and put them in a comma separated list.
 ocserv_conf_dns=$(grep nameserver /etc/resolv.conf | sed -E 's/nameserver\s+//' | sed -z -E 's/\s*$//' | sed -z 's/\n/,/g')
@@ -38,8 +45,6 @@ show_help () {
     echo "where [options] are:"
     echo "  --add-user USER:PASS  Declare USER with password PASS. At least one user"
     echo "                        should be declared the first time the server is run."
-    echo "  --certs CERTSDIR      Directory with server certificates. Certificates are"
-    echo "                        created if missing. Default is ${ocserv_conf_certs}"
     echo "  --dns SERVER,..       Comma separated list of DNS servers to use."
     echo "                        Default is the nameserver entries in /etc/resolv.conf"
     echo "  --limit-rx LIMIT      Limit ingress traffic to server to LIMIT bytes/s."
@@ -47,18 +52,25 @@ show_help () {
     echo "  --limit-tx LIMIT      Limit egress traffic from server to LIMIT bytes/s."
     echo "                        Default is ${ocserv_conf_tx_bytes_sec} (10 Gbps)."
     echo "                        Default is the nameserver entries in /etc/resolv.conf"
+    echo "  --pool POOL           Pool of addresses that leases will be given from."
+    echo "                        Default is ${ocserv_conf_pool}"
     echo "  --port PORT           Port to listen for vpn client connections."
     echo "                        Default is $ocserv_conf_port"
     echo "  --workdir WORKDIR     Directory to write support files. Created if needed."
-    echo "                        Default is $WORKDIR"
+    echo "                        Default is $WORKDIR. It will be mounted inside the"
+    echo "                        container as /srv"
 }
 
-write_conf_file () {
+write_conf_files () {
     # Turn comma-separated into dns=...\ndns=...
     ocserv_conf_dns=$(echo dns=${ocserv_conf_dns} | sed -E 's/,/\ndns=/g')
 
+    # write ocserv.conf
     template="$(cat ${ocserv_conf_template})"
     eval "echo \"${template}\"" > "${ocserv_conf_file}"
+
+    template="$(cat ${ocserv_conf_masq_template})"
+    eval "echo \"${template}\"" > "${ocserv_conf_masq_file}"
 }
 
 wait_for_file_creation()
@@ -89,10 +101,6 @@ do
             shift
             NEW_USER="$1"
             ;;
-        --certs)
-            shift
-            ocserv_conf_certs="$1"
-            ;;
         --dns)
             shift
             ocserv_conf_dns="$1"
@@ -104,6 +112,10 @@ do
         --limit-tx)
             shift
             ocserv_conf_tx_bytes_sec="$1"
+            ;;
+        --pool)
+            shift
+            ocserv_conf_pool="$1"
             ;;
         --port)
             shift
@@ -129,22 +141,16 @@ if [[ "$WORKDIR" != /* ]]; then
 fi
 WORKDIR=$(readlink -f $WORKDIR)
 
-if ! mkdir -p "${WORKDIR}"/{etc,run}
+if ! mkdir -p "${ocserv_files}"/{etc,run}
 then
     echo "Could not create working directory: $WORKDIR"
     exit 1
 fi
 
-ns_pid="${WORKDIR}"/run/ns_pid.$$
-slirp_pid="${WORKDIR}"/run/slirp_pid.$$
-slirp_socket="${WORKDIR}"/run/slirp.socket.$$
-ocserv_pid="${WORKDIR}"/run/ocserv.pid    # comes from ocserv.conf
-
-# expand WORKDIR
-ocserv_conf_file=$(eval echo $ocserv_conf_file)
-ocserv_conf_passwd=$(eval echo $ocserv_conf_passwd)
-ocserv_conf_run_dir=$(eval echo $ocserv_conf_run_dir)
-ocserv_conf_certs=$(eval echo $ocserv_conf_certs)
+ns_pid=/srv/ocserv-files/run/ns_pid.$$
+slirp_pid=/srv/ocserv-files/run/slirp_pid.$$
+slirp_socket=/srv/ocserv-files/run/slirp.socket.$$
+ocserv_pid=/srv/ocserv-files/run/ocserv.pid    # comes from ocserv.conf
 
 # copy pre-defined user and passwords if available
 if [[ ! -f "$ocserv_conf_passwd" ]] && [[ -f /etc/ocserv/ocserv.passwd ]]
@@ -175,7 +181,7 @@ fi
 # generate certificates
 /usr/bin/ocserv-genkey ${ocserv_conf_certs}
 
-write_conf_file
+write_conf_files
 
 # Create the namespace where ocserv will run
 unshare --user --map-root-user --net --mount /bin/sh <<EOF &
@@ -186,14 +192,15 @@ mount --bind /etc/ocserv/hosts.deny  /etc/hosts.deny
 # wait for slirp4netns
 sleep 5
 
-# setup masquerading
-iptables-restore < /etc/ocserv/vpn-iptables.txt
+# setup masquerading defautls
+iptables-restore < ${ocserv_conf_masq_file}
 iptables -A INPUT -p tcp --dport ${ocserv_conf_port} -j ACCEPT
 iptables -A INPUT -p udp --dport ${ocserv_conf_port} -j ACCEPT
+#iptables -A INPUT -j DROP
 
 #launch ocserv
 export LD_PRELOAD=/usr/lib/keep_privileges.so
-ocserv -f -d1 -c ${ocserv_conf_file}
+ocserv -f -d10 -c ${ocserv_conf_file}
 EOF
 echo $! > ${ns_pid}
 
