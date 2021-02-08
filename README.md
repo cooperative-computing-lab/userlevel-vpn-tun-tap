@@ -61,10 +61,7 @@ To ensure that all processes are termianted when the singularity container
 terminates, we execute the image inside an instance:
 
 ```sh
-$ singularity instance start --home $(pwd):/srv vpncms-server.sif my-vpnserver-instance
-$ singularity run --home $(pwd):/srv instance://my-vpnserver-instance
-# inside the container:
-$ /usr/bin/launch-vpn-server --add-user myvpnuser:myvpnpasswd --port 8443
+$ launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443
 Added user: myvpnuser
 SERVER PIN:
 pin-sha256:XXXXXXX...
@@ -90,7 +87,7 @@ $ docker run -e LAUNCH_VPN_SERVER=yes --rm --name oscserv -ti -p 9443:9443 --pri
 
 3. Launch some vpn clients;
 ```sh
-$ ./launch-vpn-client --image vpncms-client.sif \
+$ launch-vpn-client --image vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \

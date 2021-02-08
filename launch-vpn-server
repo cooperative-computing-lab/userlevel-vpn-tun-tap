@@ -1,0 +1,167 @@
+#! /bin/bash
+
+set -e
+
+# assume singularity is in path, otherwise specify with --singularity
+SINGULARITY=singularity
+
+# default workdir
+WORKDIR=$(pwd)/ocserv-files
+
+# default options for ocserv.conf
+VPN_PORT=8443
+VPN_RX_LIMIT=1250000000
+VPN_TX_LIMIT=1250000000
+VPN_POOL=192.168.1.0
+VPN_XFACE=tap0
+START_SERVER=yes
+
+# Read nameservers for /etc/resolv.conf and put them in a comma separated list.
+VPN_DNS=$(grep nameserver /etc/resolv.conf | sed -E 's/nameserver\s+//' | sed -z -E 's/\s*$//' | sed -z 's/\n/,/g')
+
+show_help () {
+    echo "$0 [options]"
+    echo "where [options] are:"
+    echo "  --image IMAGEPATH     Path to the singularity image to execute. (Required.)"
+    echo "  --instance NAME       Name to assign to the singularity instance. (Required.)"
+    echo "and [options] are:"
+    echo "  --add-user USER:PASS  Declare USER with password PASS. At least one user"
+    echo "                        should be declared the first time the server is run."
+    echo "  --dns SERVER,..       Comma separated list of DNS servers to use."
+    echo "                        Default is the nameserver entries in /etc/resolv.conf"
+    echo "  --limit-rx LIMIT      Limit ingress traffic to server to LIMIT bytes/s."
+    echo "                        Default is ${ocserv_conf_rx_bytes_sec} (10 Gbps)."
+    echo "  --limit-tx LIMIT      Limit egress traffic from server to LIMIT bytes/s."
+    echo "                        Default is ${ocserv_conf_tx_bytes_sec} (10 Gbps)."
+    echo "                        Default is the nameserver entries in /etc/resolv.conf"
+    echo "  --pool POOL           Pool of addresses that leases will be given from."
+    echo "                        Default is ${ocserv_conf_pool}"
+    echo "  --port PORT           Port to listen for vpn client connections."
+    echo "                        Default is $ocserv_conf_port"
+    echo "  --singularity PATH    Path to the singularity executable. (Default: $SINGULARITY)"
+    echo "  --start-server yes|no Whether to setup net on startup. If no, network can"
+    echo "                        be started with: source /etc/cms-vpn/vpn-client-start.sh"
+    echo "  --workdir WORKDIR     Directory to write support files. Created if needed."
+    echo "                        Default is $WORKDIR. It will be mounted inside the"
+    echo "                        container as /srv"
+}
+
+cleanup () {
+    if [[ -n "${VPN_INSTANCE_NAME}" ]]
+    then
+        ${SINGULARITY} instance stop ${VPN_INSTANCE_NAME}
+    fi
+}
+trap cleanup EXIT
+
+# parse arguments
+while [[ $# -gt 0 ]]
+do
+    arg="$1"
+    case "${arg}" in
+        --image)
+            shift
+            VPN_IMAGE_PATH="$1"
+            ;;
+        --instance)
+            shift
+            VPN_INSTANCE_NAME="$1"
+            ;;
+        --add-user)
+            shift
+            VPN_NEW_USER="$1"
+            ;;
+        --dns)
+            shift
+            VPN_DNS="$1"
+            ;;
+        --limit-rx)
+            shift
+            VPN_RX_LIMIT="$1"
+            ;;
+        --limit-tx)
+            shift
+            VPN_TX_LIMIT="$1"
+            ;;
+        --pool)
+            shift
+            VPN_POOL="$1"
+            ;;
+        --port)
+            shift
+            VPN_PORT="$1"
+            ;;
+        --singularity)
+            shift
+            SINGULARITY="$1"
+            ;;
+        --start-server)
+            shift
+            START_SERVER="$1"
+            ;;
+        --workdir)
+            shift
+            WORKDIR="$1"
+            ;;
+        *)
+            echo "Unrecognized option: $arg"
+            show_help
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+
+missing_arg=no
+if [[ -z "${VPN_IMAGE_PATH}" ]]
+then
+    echo "Missing --image option."
+    missing_arg=yes
+fi
+
+if [[ -z "${VPN_INSTANCE_NAME}" ]]
+then
+    echo "Missing --instance option."
+    missing_arg=yes
+fi
+
+if [[ "$missing_arg" = yes ]]
+then
+    show_help
+    exit 1
+fi
+
+# If workdir is not absolute, assume relative to current directory.
+if [[ "$WORKDIR" != /* ]]; then
+    WORKDIR=$(pwd)/${WORKDIR}
+fi
+
+WORKDIR=$(readlink -f $WORKDIR)
+
+
+if ! ${SINGULARITY} instance start --home ${WORKDIR}:/srv ${VPN_IMAGE_PATH} ${VPN_INSTANCE_NAME}
+then
+    echo "Could not launch instance: ${VPN_INSTANCE_NAME}"
+    exit 1
+fi
+
+
+export VPN_PORT
+export VPN_RX_LIMIT
+export VPN_TX_LIMIT
+export VPN_POOL
+export VPN_XFACE
+export VPN_DNS
+export VPN_NEW_USER
+
+if [[ "${START_SERVER}" = yes ]]
+then
+    ${SINGULARITY} run instance://${VPN_INSTANCE_NAME} /etc/cms-vpn/vpn-server-start.sh "$@"
+else
+    echo "Not starting vpn server as requested."
+    echo "To activate vpn client use: /etc/cms-vpn/vpn-server-start.sh"
+
+    ${SINGULARITY} run instance://${VPN_INSTANCE_NAME} /bin/bash
+fi
+
