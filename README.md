@@ -95,7 +95,7 @@ $ ./launch-vpn-client --image vpncms-client.sif \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \
      --passwd myvpnpasswd \
-     --net-mode ns \
+     --vpn-mode ns \
      -- /bin/bash
 ```
 

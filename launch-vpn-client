@@ -5,15 +5,15 @@ NAME_MAX_TRIES=10            # number of attempts to find a unique name for the 
 SINGULARITY=singularity      # assume singularity is in path, otherwise specify with --singularity
 VPN_SERVER=                  # vpn server to connect to. set with --vpn-server
 SERVERPIN=                   # sha256 pin of the vpn server
-NET_MODE=auto                # auto or ns or socks
-START_NET=yes                # should start network connection automatically
+VPN_MODE=auto                # auto or ns or socks
+START_CLIENT=yes             # should start client connection automatically
 SOCKS_PORT=11080
 SIN_HOME=/srv
 
 show_help () {
     echo "$0 [options] -- CMD ARG ARG ..."
     echo "required options are:"
-    echo "  --image IMAGE_PATH       Path to the singularity image to execute. (Required.)"
+    echo "  --image  IMAGEPATH       Path to the singularity image to execute. (Required.)"
     echo "  --server SERVER          VPN server to connect to. (Required.)"
     echo "  --servercert SERVERPIN   Server pin, of the form: pin-sha256:XXXX...= (Required)"
     echo "  --user USER              Username for VPN server login. (Required.)" 
@@ -21,13 +21,13 @@ show_help () {
     echo ""
     echo "other options are:"
     echo "  --max-tries N            Maximum number of attempts to find a valid instance name. (Default: $NAME_MAX_TRIES)"
-    echo "  --net-mode auto|ns|socks ns:    create virtually network interface"
+    echo "  --vpn-mode auto|ns|socks ns:    create virtually network interface"
     echo "                           socks: use a socks5 server"
     echo "                           auto:  try ns and fallback to socks. (Default: auto)"
     echo "  --singularity PATH       Path to the singularity executable. (Default: $SINGULARITY)"
     echo "  --socks-port PORT        Port for the socks5 server (Default $SOCKS_PORT)"
-    echo "  --start-net yes|no       Whether to setup net on startup. If no, network can"
-    echo "                           be started with: source /etc/cms-vpn/vpn-start"
+    echo "  --start-client yes|no    Whether to start client on startup. If no, it can"
+    echo "                           be started with: source /etc/cms-vpn/vpn-client-start.sh"
     echo ""
     echo "  CMD ARG ...:             Command and args to execute inside the container."
     echo "                           Must be specified last after: --"
@@ -53,7 +53,7 @@ start_instance () {
 cleanup () {
     if [[ -n "${INSTANCE_NAME}" ]]
     then
-        ${SINGULARITY} instance stop ${CANDIDATE}
+        ${SINGULARITY} instance stop ${INSTANCE_NAME}
     fi
 }
 trap cleanup EXIT
@@ -75,13 +75,13 @@ do
             shift
             SINGULARITY="$1"
             ;;
-        --net-mode)
+        --vpn-mode)
             shift
-            NET_MODE="$1"
+            VPN_MODE="$1"
             ;;
-        --start-net)
+        --start-client)
             shift
-            START_NET="$1"
+            START_CLIENT="$1"
             ;;
         --server)
             shift
@@ -158,21 +158,17 @@ then
     exit 1
 fi
 
-
-
-
 if [[ $# = 0 ]]
 then
     # use /bin/bash as the default command to execute
     set /bin/bash
 fi
 
-
 start_instance
 
 export VPN_SERVER
 export SERVERPIN
-export NET_MODE
+export VPN_MODE
 export SOCKS_PORT
 export SIN_HOME
 
@@ -180,11 +176,13 @@ export SIN_HOME
 export VPN_USER
 export VPN_PASSWD
 
-if [[ "${START_NET}" = yes ]]
+if [[ "${START_CLIENT}" = yes ]]
 then
     ${SINGULARITY} run instance://${INSTANCE_NAME} /etc/cms-vpn/vpn-client-start.sh "$@"
 else
-    echo "Not starting vpn client as requested."
+    echo "Not starting vpn client as requested. Ignoring COMMAND."
     echo "To activate vpn client use: /etc/cms-vpn/vpn-client-start.sh COMMAND"
+
+    ${SINGULARITY} run instance://${INSTANCE_NAME} /bin/bash
 fi
 

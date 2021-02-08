@@ -1,7 +1,7 @@
 #! /bin/bash
 
 SOCKS_PORT=${SOCKS_PORT:-11080}
-NET_MODE=${NET_MODE:-auto}
+VPN_MODE=${VPN_MODE:-auto}
 
 trap cleanup EXIT
 cleanup () {
@@ -13,7 +13,7 @@ cleanup () {
 
 echo "Activating openconnect..."
 
-if [[ "${NET_MODE}" = auto || "${NET_MODE}" = ns ]]
+if [[ "${VPN_MODE}" = auto || "${VPN_MODE}" = ns ]]
 then
     if echo "${VPN_PASSWD}" | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun  --script "vpnns --attach" --no-dtls
     then
@@ -26,7 +26,7 @@ then
 fi
 
 # fallback to socks
-if [[ "${NET_MODE}" = auto || "${NET_MODE}" = socks ]]
+if [[ "${VPN_MODE}" = auto || "${VPN_MODE}" = socks ]]
 then
     echo ${VPN_USER} | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}" --no-dtls
     export LD_PRELOAD=/lib/libtsocks.so.1.8 
