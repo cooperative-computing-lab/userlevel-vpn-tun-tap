@@ -26,7 +26,7 @@ Stage: final
 
     echo sslverify=false >> /etc/yum.conf
     echo skip_missing_names_on_install=false >> /etc/yum.conf
-    yum install -y ocserv nc
+    yum install -y ocserv nc tcpdump
     mkdir -p /etc/pki/ocserv
     mkdir -p /srv
 

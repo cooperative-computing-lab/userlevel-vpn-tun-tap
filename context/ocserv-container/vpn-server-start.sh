@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -ex
+set -e
 
 source /etc/cms-vpn/vpn-common.sh
 
@@ -8,7 +8,6 @@ source /etc/cms-vpn/vpn-common.sh
 ocserv_conf_template=/etc/ocserv/ocserv.conf.template
 ocserv_conf_masq_template=/etc/ocserv/vpn-iptables.template
 ocserv_conf_port=${VPN_PORT:-8443}
-ocserv_conf_gateway=default   # default for ocserv
 ocserv_conf_default_domain=ocserv-server.net
 ocserv_conf_rx_bytes_sec=${VPN_RX_LIMIT:-1250000000}
 ocserv_conf_tx_bytes_sec=${VPN_TX_LIMIT:-1250000000}
@@ -23,15 +22,16 @@ ocserv_conf_certs="${ocserv_etc}"/certs
 ocserv_conf_pool=${VPN_POOL}
 ocserv_conf_dns="${VPN_DNS}"
 
-USE_SLIRP=no
-if [[ -z "${VPN_INTERFACE}" ]]
-then
-    USE_SLIRP=yes
-    VPN_INTERFACE=tap0
-    ocserv_conf_gateway=10.0.2.0/24             # default value from slirp4netns for tap0
-fi
+VPN_PRIVILEGED=${VPN_PRIVILEGED:-no}
 
-ocserv_conf_interface=${VPN_INTERFACE}
+if [[ "${VPN_PRIVILEGED}" = no ]]
+then
+    ocserv_conf_gateway=10.0.2.0/24             # default value from slirp4netns for tap0
+    ocserv_conf_interface=tap0
+else
+    ocserv_conf_gateway=default                 # default for ocserv
+    ocserv_conf_interface=eth0
+fi
 
 
 trap cleanup EXIT
@@ -44,6 +44,11 @@ cleanup () {
     if [[ -f "${slirp_pid}" ]]
     then
         kill $(cat ${slirp_pid}) && rm -f "${slirp_pid}"
+    fi
+
+    if [[ -e "${CUSTOM_NAMESPACE}" ]]
+    then
+        umount "${CUSTOM_NAMESPACE}"
     fi
 }
 
@@ -62,7 +67,7 @@ write_conf_files () {
 
 if ! mkdir -p "${ocserv_files}"/{etc,run}
 then
-    echo "Could not create working directory: $WORKDIR"
+    echo "Could not create working directory: $ocserv_files"
     exit 1
 fi
 
@@ -98,11 +103,12 @@ then
 fi
 
 # Whether to create a network namespace for the network interface
-net_option=""
-if [[ "${USE_SLIRP}" = yes ]]
+if [[ "${VPN_PRIVILEGED}" = no ]]
 then
     net_option="--net"
 fi
+
+write_conf_files
 
 # Create the namespace where ocserv will run
 unshare --user --map-root-user ${net_option} --mount /bin/sh <<EOF &
@@ -112,10 +118,9 @@ mount --bind /etc/ocserv/resolv.conf /etc/resolv.conf
 mount --bind /etc/ocserv/hosts.allow /etc/hosts.allow
 mount --bind /etc/ocserv/hosts.deny  /etc/hosts.deny
 
-
-if [[ "${USE_SLIRP}" = yes ]]
+if [[ "${VPN_PRIVILEGED}" = no ]]
 then
-    # wait for slirp4netns
+    # waiting for slirp4netns to create the interface
     wait_for_event 5 ip addr show ${ocserv_conf_interface}
 fi
 
@@ -130,13 +135,12 @@ export LD_PRELOAD=/usr/lib/keep_privileges.so
 # generate certificates
 /usr/bin/ocserv-genkey ${ocserv_conf_certs}
 
-write_conf_files
 ocserv -f -c ${ocserv_conf_file}
 EOF
 echo $! > ${ns_pid}
 
 # Create tap0 if necessary
-if [[ "${USE_SLIRP}" = yes ]]
+if [[ "${VPN_PRIVILEGED}" = no ]]
 then
     # Create virtual network interface in the namespace (tap0)
     slirp4netns --configure --mtu=65520 --disable-host-loopback $(cat ${ns_pid}) -a ${slirp_socket} tap0 &

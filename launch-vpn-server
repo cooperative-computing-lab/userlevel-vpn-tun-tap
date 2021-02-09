@@ -6,7 +6,7 @@ set -e
 SINGULARITY=singularity
 
 # default workdir
-WORKDIR=$(pwd)/ocserv-files
+WORKDIR=$(pwd)
 
 # default options for ocserv.conf
 VPN_PORT=8443
@@ -14,8 +14,9 @@ VPN_RX_LIMIT=1250000000
 VPN_TX_LIMIT=1250000000
 VPN_POOL=192.168.1.0
 
-# If unset, use tap0 without admin privileges.
-VPN_INTERFACE=
+# Whether to assume we are running with admin privileges
+VPN_PRIVILEGED=no
+
 
 START_SERVER=yes
 
@@ -32,8 +33,8 @@ show_help () {
     echo "                        should be declared the first time the server is run."
     echo "  --dns SERVER,..       Comma separated list of DNS servers to use."
     echo "                        Default is the nameserver entries in /etc/resolv.conf"
-    echo "  --interface DEV       Use already defined network interface DEV."
-    echo "                        Needs admin privileges. If unspecified (the default)"
+    echo "  --privileged          Run assuming admin privileges. (I.e. do not use"
+    echo "                        slirp4netns for the network.)"
     echo "                        create virtual interface tap0 with stack in userspace."
     echo "  --limit-rx LIMIT      Limit ingress traffic to server to LIMIT bytes/s."
     echo "                        Default is ${ocserv_conf_rx_bytes_sec} (10 Gbps)."
@@ -81,9 +82,8 @@ do
             shift
             VPN_DNS="$1"
             ;;
-        --interface)
-            shift
-            VPN_INTERFACE="$1"
+        --privileged)
+            VPN_PRIVILEGED=yes
             ;;
         --limit-rx)
             shift
@@ -148,9 +148,18 @@ if [[ "$WORKDIR" != /* ]]; then
 fi
 
 WORKDIR=$(readlink -f $WORKDIR)
+if ! mkdir -p ${WORKDIR}/{etc,run}
+then
+    echo "Could not create working subdirectories in ${WORKDIR}"
+    exit 1
+fi
 
+if [[ "${VPN_PRIVILEGED}" = yes ]]
+then
+    network_options="--net --network bridge --network-args 'portmap=${VPN_PORT}:${VPN_PORT}/tcp' --network-args 'portmap=${VPN_PORT}:${VPN_PORT}/udp'"
+fi
 
-if ! ${SINGULARITY} instance start --home ${WORKDIR}:/srv ${VPN_IMAGE_PATH} ${VPN_INSTANCE_NAME}
+if ! ${SINGULARITY} instance start --home ${WORKDIR}:/srv ${network_options} ${VPN_IMAGE_PATH} ${VPN_INSTANCE_NAME}
 then
     echo "Could not launch instance: ${VPN_INSTANCE_NAME}"
     exit 1
@@ -161,9 +170,10 @@ export VPN_PORT
 export VPN_RX_LIMIT
 export VPN_TX_LIMIT
 export VPN_POOL
-export VPN_INTERFACE
+export VPN_PRIVILEGED
 export VPN_DNS
 export VPN_NEW_USER
+export WORKDIR
 
 if [[ "${START_SERVER}" = yes ]]
 then
