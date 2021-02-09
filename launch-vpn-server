@@ -156,7 +156,7 @@ fi
 
 if [[ "${VPN_PRIVILEGED}" = yes ]]
 then
-    network_options="--net --network bridge --network-args 'portmap=${VPN_PORT}:${VPN_PORT}/tcp' --network-args 'portmap=${VPN_PORT}:${VPN_PORT}/udp'"
+    network_options="--net --network bridge --network-args \"portmap=${VPN_PORT}:${VPN_PORT}/tcp\" --network-args \"portmap=${VPN_PORT}:${VPN_PORT}/udp\""
 fi
 
 if ! ${SINGULARITY} instance start --home ${WORKDIR}:/srv ${network_options} ${VPN_IMAGE_PATH} ${VPN_INSTANCE_NAME}
