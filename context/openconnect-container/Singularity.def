@@ -45,6 +45,6 @@ Stage: final
 %post
     echo sslverify=false >> /etc/yum.conf
     echo skip_missing_names_on_install=false >> /etc/yum.conf
-    yum install -y openconnect libevent tcpdump expect
+    yum install -y openconnect libevent tcpdump nmap iperf
     mkdir -p /srv
 
