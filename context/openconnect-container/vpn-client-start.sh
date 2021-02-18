@@ -28,20 +28,21 @@ fi
 # fallback to socks
 if [[ "${VPN_MODE}" = auto || "${VPN_MODE}" = socks ]]
 then
-    echo ${VPN_USER} | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}" --no-dtls
-    export LD_PRELOAD=/lib/libtsocks.so.1.8 
+    if echo "${VPN_PASSWD}" | openconnect ${VPN_SERVER} -u ${VPN_USER} --servercert ${SERVERPIN} -b --passwd-on-stdin --script-tun --script "/usr/bin/ocproxy -D${SOCKS_PORT}" --no-dtls
+    then
+        export LD_PRELOAD=/lib/libtsocks.so.1.8 
 
-    export TSOCKS_CONF=$(readlink -m $(mktemp -p ${SIN_HOME} tsocks.conf.XXXXXX))
-    cat >> ${TSOCKS_CONF} <<EOF
+        export TSOCKS_CONF=$(readlink -m $(mktemp -p ${SIN_HOME} tsocks.conf.XXXXXX))
+        cat >> ${TSOCKS_CONF} <<EOF
 server = 127.0.0.1
 server_type = 5
 server_port = ${SOCKS_PORT}
 EOF
-
-    echo "Using socks5 server..."
-    "$@"
-    status=$?
-    exit $?
+        echo "Using socks5 server..."
+        "$@"
+        status=$?
+        exit $?
+    fi
 fi
 
 echo "Could not start vpn connection."
