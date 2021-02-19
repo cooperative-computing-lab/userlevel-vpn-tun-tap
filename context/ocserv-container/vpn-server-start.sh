@@ -143,7 +143,8 @@ echo $! > ${ns_pid}
 if [[ "${VPN_PRIVILEGED}" = no ]]
 then
     # Create virtual network interface in the namespace (tap0)
-    slirp4netns --configure --mtu=65520 --disable-host-loopback $(cat ${ns_pid}) -a ${slirp_socket} tap0 &
+    # mtu matches the one set at ocserv.conf - 28
+    slirp4netns --configure --mtu=1472 --disable-host-loopback $(cat ${ns_pid}) -a ${slirp_socket} tap0 &
     echo $! > ${slirp_pid}
     wait_for_event 5 stat ${slirp_socket}
 

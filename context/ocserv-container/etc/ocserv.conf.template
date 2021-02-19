@@ -160,7 +160,8 @@ ping-leases = false
 
 # Use this option to enforce an MTU value to the incoming
 # connections. Unset to use the default MTU of the TUN device.
-#mtu = 1420
+# (value here is used at clients as -( 20 + 8) = 1472
+mtu = 1500
 
 # Unset to enable bandwidth restrictions (in bytes/sec). The
 # setting here is global, but can also be set per user or per group.
