@@ -105,13 +105,13 @@ fi
 # Whether to create a network namespace for the network interface
 if [[ "${VPN_PRIVILEGED}" = no ]]
 then
-    net_option="--net"
+    unprivileged_options="--user --map-root-user --net"
 fi
 
 write_conf_files
 
 # Create the namespace where ocserv will run
-unshare --user --map-root-user ${net_option} --mount /bin/sh <<EOF &
+unshare ${unprivileged_options} --mount /bin/sh <<EOF &
 source /etc/cms-vpn/vpn-common.sh
 
 mount --bind /etc/ocserv/resolv.conf /etc/resolv.conf
