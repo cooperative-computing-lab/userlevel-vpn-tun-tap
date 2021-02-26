@@ -74,7 +74,9 @@ We make note of the server pin printed, as we will need it when connecting the c
 
 ### With root privileges: 
 
+```sh
 $ sudo ./launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
+```
 
 
 ## Launch some vpn clients;
@@ -98,7 +100,7 @@ cvmfs can be provided using cvmfsexec via fusermount and singularity. We do
 this by creating a self-contained cvmfsexec distribution and using it as the
 singularity executable:
 
-```
+```sh
 $ git clone https://github.com/cvmfs/cvmfsexec.git
 $ cd cvmfsexec
 $ ./makedist -s -m rhel7-x86_64 osg
