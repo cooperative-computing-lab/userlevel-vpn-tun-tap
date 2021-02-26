@@ -75,13 +75,13 @@ We make note of the server pin printed, as we will need it when connecting the c
 ### With root privileges: 
 
 ```sh
-$ sudo ./launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
+$ sudo ./launch-vpn-server --image context/ocserv-container/vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
 ```
 
 
 ## Launch some vpn clients;
 ```sh
-$ ./launch-vpn-client --image vpncms-client.sif \
+$ ./launch-vpn-client --image context/openconnect-container/vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \
@@ -107,7 +107,7 @@ $ ./makedist -s -m rhel7-x86_64 osg
 $ ./makedist -s -o /tmp/singularity-cmvfsexec
 $ cd ..
 $ export SINGCVMFS_REPOSITORIES=cms.cern.ch,atlas.cern.ch,oasis.opensciencegrid.org
-$ ./launch-vpn-client --image vpncms-client.sif \
+$ ./launch-vpn-client --image context/openconnect-container/vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \
