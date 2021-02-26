@@ -39,6 +39,7 @@ root at the execution sites.
 ```sh
 $ cd context/openconnect-container
 $ sudo singularity build vpncms-client.sif Singularity.def
+$ cd ../..
 ```
 
 The build process installs openconnect and its dependencies using the
@@ -51,6 +52,7 @@ root privileges.
 ```sh
 $ cd context/ocserv-container
 $ sudo singularity build vpncms-server.sif Singularity.def
+$ cd ../..
 ```
 
 2. Running the VPN server
@@ -61,7 +63,7 @@ To ensure that all processes are termianted when the singularity container
 terminates, we execute the image inside an instance:
 
 ```sh
-$ launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443
+$ ./launch-vpn-server --image context/ocserv-container/vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443
 Added user: myvpnuser
 SERVER PIN:
 pin-sha256:XXXXXXX...
@@ -72,22 +74,12 @@ We make note of the server pin printed, as we will need it when connecting the c
 
 2.b With root privileges: 
 
-[[ something similar to the above; but using singularity --network, etc. need to expand ]]
+$ ./launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
 
-
-2.c Docker [[ obsolete instructions, need to update ]]
-
-If using docker for the vpn server, it needs to run in separate network than
-`host`, e.g.:
-
-```sh
-$ docker network create vpncms-net
-$ docker run -e LAUNCH_VPN_SERVER=yes --rm --name oscserv -ti -p 9443:9443 --privileged --network vpncms-net  -v $(pwd):/srv vpncms /bin/bash
-```
 
 3. Launch some vpn clients;
 ```sh
-$ launch-vpn-client --image vpncms-client.sif \
+$ ./launch-vpn-client --image vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
      --servercert pin-sha256:XXXXXXX... \
      --user myvpnuser \
@@ -102,9 +94,24 @@ setup magic happens in /etc/cms-vpn/vpn-start.sh.
 
 4. Adding cvmfs support
 
-cvmfs can be provided using cvmfsexec via fusermount and singularity.
+cvmfs can be provided using cvmfsexec via fusermount and singularity. We do
+this by creating a self-contained cvmfsexec distribution and using it as the
+singularity executable:
 
-Create a singularity distribution of cvmfsexec (`-s` command line option) and
-set `--singularity` of `launch-vpn-client` to the resulting cvmfsexec file. [NEED
-TO EXPAND.]
+```
+$ git clone https://github.com/cvmfs/cvmfsexec.git
+$ cd cvmfsexec
+$ ./makedist -s -m rhel7-x86_64 osg
+$ ./makedist -s -o /tmp/singularity-cmvfsexec
+$ cd ..
+$ export SINGCVMFS_REPOSITORIES=cms.cern.ch,atlas.cern.ch,oasis.opensciencegrid.org
+$ ./launch-vpn-client --image vpncms-client.sif \
+     --server MACHINE_WHERE_OCSERV_RUNS:8443 \
+     --servercert pin-sha256:XXXXXXX... \
+     --user myvpnuser \
+     --passwd myvpnpasswd \
+     --vpn-mode ns \
+     --singularity /tmp/singularity-cmvfsexec \
+     -- ls /cvmfs/cms.cern.ch
+```
 
