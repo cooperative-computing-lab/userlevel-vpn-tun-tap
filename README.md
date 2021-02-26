@@ -5,7 +5,7 @@ network namespaces. All the network traffic of the container is routed to the
 virtual interface and then a vpn server (ocserv). The interface gets its ip
 from the vpn server.
 
-0. Pre-setup
+## Pre-setup
 
 The following is needed to allow a user to manipulate namespaces at the compute nodes:
 
@@ -32,9 +32,9 @@ and similarly run `sysctl -p` afterwards. These are the only steps that require
 root at the execution sites.
 
 
-1. Building the containers
+## Building the containers
 
-1.1 Building the singularity image for the VPN clients:
+### Building the singularity image for the VPN clients:
 
 ```sh
 $ cd context/openconnect-container
@@ -47,7 +47,7 @@ cmssw/cms:rhel7 image as a base. It will also compile from source `vpnns`,
 `ocproxy' and `tsocks`, the alternative programs to use openconnect without
 root privileges.
 
-1.2 Building the singularity image for the VPN server:
+### Building the singularity image for the VPN server:
 
 ```sh
 $ cd context/ocserv-container
@@ -55,9 +55,9 @@ $ sudo singularity build vpncms-server.sif Singularity.def
 $ cd ../..
 ```
 
-2. Running the VPN server
+## Running the VPN server
 
-2.a Without root privileges: 
+### Without root privileges: 
 
 To ensure that all processes are termianted when the singularity container
 terminates, we execute the image inside an instance:
@@ -72,12 +72,12 @@ pin-sha256:XXXXXXX...
 We make note of the server pin printed, as we will need it when connecting the clients.
 
 
-2.b With root privileges: 
+### With root privileges: 
 
-$ ./launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
+$ sudo ./launch-vpn-server --image vpncms-server.img --instance vpn_server --add-user myvpnuser:myvpnpasswd --port 8443 --privileged
 
 
-3. Launch some vpn clients;
+## Launch some vpn clients;
 ```sh
 $ ./launch-vpn-client --image vpncms-client.sif \
      --server MACHINE_WHERE_OCSERV_RUNS:8443 \
@@ -92,7 +92,7 @@ The `launch-vpn-client` script simply starts/stops an instance of the singularit
 container so that no openconnect services are left behind The real virtual interface
 setup magic happens in /etc/cms-vpn/vpn-start.sh.
 
-4. Adding cvmfs support
+## Adding cvmfs support
 
 cvmfs can be provided using cvmfsexec via fusermount and singularity. We do
 this by creating a self-contained cvmfsexec distribution and using it as the
